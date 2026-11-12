@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>主管出一張嘴：背鍋週記</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--ink:#2b2a33;--paper:#fffdf6;--accent:#ff5a3c;--ok:#2fa86b;--warn:#f2b632;--navy:#2f3a5c}
+html,body{height:100%;background:#1d2030;font-family:"Noto Sans TC",system-ui,sans-serif;color:var(--ink)}
+#app{max-width:520px;height:100%;margin:0 auto;display:flex;flex-direction:column;background:#e9e4d8;position:relative;overflow:hidden}
+
+/* HUD */
+#hud{background:var(--navy);color:#fff;padding:10px 12px 8px;display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-size:13px;z-index:5}
+#dayLabel{font-weight:900;font-size:16px;letter-spacing:1px}
+#qLabel{font-weight:700;opacity:.85;text-align:right}
+.meter{display:flex;align-items:center;gap:6px;font-size:12px}
+.meter b{width:70px;flex:none;font-weight:700;white-space:nowrap}
+.bar{flex:1;height:9px;background:rgba(255,255,255,.18);border-radius:6px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px;transition:width .5s}
+#satBar{background:linear-gradient(90deg,#ff7a59,#ffd36b)}
+#livBar{background:linear-gradient(90deg,#9be37a,#e04848)}
+#potCount{font-weight:900;color:#ffd36b;text-align:right;font-size:13px}
+
+/* Stage */
+#stage{position:relative;flex:1;min-height:300px;overflow:hidden}
+#bg{position:absolute;inset:0;width:100%;height:100%}
+.char{position:absolute;bottom:4%;transition:transform .3s,width .3s}
+#boss{left:2%;width:52%;max-width:250px}
+#sub{right:4%;width:34%;max-width:165px}
+#boss svg,#sub svg{width:100%;height:auto;display:block}
+#boss .body{animation:bob 2.4s ease-in-out infinite;transform-origin:50% 100%}
+@keyframes bob{50%{transform:translateY(-4px) scaleX(1.02)}}
+#sub .body{animation:jitter .25s steps(2) infinite}
+@keyframes jitter{50%{transform:translateX(1px)}}
+.talking #bossMouth{animation:talk .18s ease-in-out infinite alternate;transform-origin:100px 112px}
+@keyframes talk{from{transform:scaleY(.3)}to{transform:scaleY(1.3)}}
+#sweat{animation:sweat 1.2s ease-in infinite}
+@keyframes sweat{0%{transform:translateY(0);opacity:1}100%{transform:translateY(22px);opacity:0}}
+#sub.happy .body{animation:hop .5s ease 2}
+@keyframes hop{50%{transform:translateY(-14px)}}
+#sub.sad{transform:rotate(-4deg) translateY(6px)}
+
+/* bubbles */
+.bubble{position:absolute;background:var(--paper);border:3px solid var(--ink);border-radius:16px;padding:10px 12px;font-size:15px;line-height:1.45;font-weight:700;box-shadow:4px 4px 0 rgba(0,0,0,.18);opacity:0;transform:scale(.85);transition:.2s;z-index:3}
+.bubble.show{opacity:1;transform:scale(1)}
+#bossBubble{left:3%;top:4%;width:64%}
+#bossBubble:after{content:"";position:absolute;left:34px;bottom:-14px;border:12px solid transparent;border-top-color:var(--ink);border-bottom:0}
+#subBubble{right:3%;top:30%;max-width:52%;background:#e7f7ff;font-weight:400}
+#subBubble:after{content:"";position:absolute;right:30px;bottom:-14px;border:12px solid transparent;border-top-color:var(--ink);border-bottom:0}
+#bossBubble small{display:block;font-weight:400;font-size:12px;color:#777;margin-top:4px}
+
+/* wok */
+#wok{position:absolute;right:9%;top:-30%;width:26%;max-width:120px;z-index:4;pointer-events:none}
+#wok.drop{animation:drop .7s cubic-bezier(.5,0,.8,1.4) forwards}
+@keyframes drop{0%{top:-30%;transform:rotate(-30deg)}70%{top:var(--land,36%);transform:rotate(8deg)}85%{top:calc(var(--land,36%) - 10px)}100%{top:var(--land,36%);transform:rotate(0)}}
+#wok.gone{transition:opacity .4s;opacity:0}
+
+#stamp{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%) rotate(-12deg) scale(2);font-size:40px;font-weight:900;color:var(--accent);border:6px solid var(--accent);padding:2px 14px;border-radius:10px;opacity:0;z-index:6;pointer-events:none;background:rgba(255,255,255,.75)}
+#stamp.show{animation:stamp .9s ease forwards}
+#stamp.ok{color:var(--ok);border-color:var(--ok)}
+@keyframes stamp{0%{opacity:0;transform:translate(-50%,-50%) rotate(-12deg) scale(2)}20%{opacity:1;transform:translate(-50%,-50%) rotate(-12deg) scale(1)}80%{opacity:1}100%{opacity:0}}
+
+/* timer */
+#timer{position:absolute;right:10px;top:8px;z-index:4;background:var(--ink);color:#fff;font-weight:900;border-radius:20px;padding:3px 10px;font-size:14px}
+#timer.hurry{background:var(--accent);animation:pulse .5s infinite alternate}
+@keyframes pulse{to{transform:scale(1.12)}}
+
+/* controls */
+#controls{background:var(--paper);border-top:3px solid var(--ink);padding:10px 10px calc(10px + env(safe-area-inset-bottom));z-index:5}
+#row{display:flex;gap:8px}
+#answer{flex:1;min-width:0;font:inherit;font-size:16px;border:3px solid var(--ink);border-radius:12px;padding:10px 12px;background:#fff}
+button{font:inherit;font-weight:900;border:3px solid var(--ink);border-radius:12px;background:#fff;cursor:pointer;box-shadow:3px 3px 0 var(--ink);transition:transform .08s}
+button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+#mic{width:52px;font-size:22px;background:#ffe3dc}
+#mic.on{background:var(--accent);animation:pulse .6s infinite alternate}
+#send{padding:0 14px;background:var(--warn)}
+#sub-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#666;gap:8px}
+#hintBtn,#bgmBtn{font-size:12px;padding:4px 8px;box-shadow:2px 2px 0 var(--ink);border-width:2px}
+#hintText{color:#ff1a1a;font-weight:900;text-shadow:0 0 6px rgba(255,30,30,.45)}
+.kw{color:#ff1a1a;font-weight:900;background:#ffe9e9;border-radius:4px;padding:0 2px;text-shadow:0 0 8px rgba(255,30,30,.55);animation:kwglow .6s ease-in-out 3 alternate}
+@keyframes kwglow{to{background:#ffc9c9;text-shadow:0 0 14px rgba(255,0,0,.9)}}
+#hpWrap{position:absolute;left:-6%;right:-6%;top:-26px;display:flex;align-items:center;gap:4px;font-size:11px;font-weight:900;color:#fff;background:rgba(43,42,51,.85);border-radius:8px;padding:3px 6px;z-index:2}
+.hpbar{flex:1;height:8px;background:#555;border-radius:5px;overflow:hidden}
+#hpBar{display:block;height:100%;width:100%;background:#3fd27a;transition:width .4s,background .4s}
+#hpWrap.low{animation:pulse .5s infinite alternate}
+.dmg{position:absolute;right:14%;top:30%;font-size:28px;font-weight:900;color:#e04848;-webkit-text-stroke:1.5px #fff;z-index:7;pointer-events:none;animation:dmg 1.1s ease-out forwards}
+.dmg.heal{color:#2fa86b}
+@keyframes dmg{0%{opacity:0;transform:translateY(10px) scale(.6)}20%{opacity:1;transform:scale(1.2)}100%{opacity:0;transform:translateY(-50px)}}
+#sub-row{flex-wrap:wrap}
+#toast{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:8px 14px;border-radius:10px;font-size:13px;opacity:0;transition:.3s;z-index:20;width:86%;text-align:center;pointer-events:none}
+#toast.show{opacity:1}
+
+/* overlays */
+.overlay{position:absolute;inset:0;background:rgba(29,32,48,.82);display:flex;align-items:center;justify-content:center;z-index:30;padding:20px}
+.overlay.hide{display:none}
+.card{background:var(--paper);border:4px solid var(--ink);border-radius:20px;padding:22px 20px;width:100%;max-width:420px;text-align:center;box-shadow:6px 6px 0 #000;max-height:92%;overflow:auto}
+.card h1{font-size:28px;font-weight:900;line-height:1.2;margin-bottom:6px}
+.card h1 em{font-style:normal;color:var(--accent)}
+.card h2{font-size:22px;font-weight:900;margin-bottom:8px}
+.card p{font-size:14px;line-height:1.6;margin:8px 0;color:#444}
+.card ul{text-align:left;font-size:13px;line-height:1.7;margin:10px 0 14px 18px;color:#444}
+.card .big{font-size:44px;font-weight:900;color:var(--accent);margin:6px 0}
+.card button{padding:12px 26px;font-size:18px;background:var(--warn);margin-top:8px}
+.tag{display:inline-block;background:var(--ink);color:#fff;border-radius:8px;padding:2px 10px;font-size:12px;font-weight:700;margin-bottom:8px}
+.log{text-align:left;font-size:12.5px;line-height:1.5;margin:10px 0;border-top:2px dashed #ccc;padding-top:8px}
+.log div{margin:4px 0}
+.log .g{color:var(--ok)}.log .r{color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div id="dayLabel">週一</div><div id="qLabel">第 1 / 5 題</div>
+    <div class="meter"><b>主管滿意度</b><div class="bar"><i id="satBar" style="width:60%"></i></div></div>
+    <div id="potCount">🍳 背鍋 0</div>
+    <div class="meter" style="grid-column:1/3"><b>爆肝指數</b><div class="bar"><i id="livBar" style="width:10%"></i></div></div>
+  </div>
+
+  <div id="stage">
+    <!-- office background -->
+    <svg id="bg" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice">
+      <rect width="400" height="400" fill="#efe6d2"/>
+      <rect y="0" width="400" height="18" fill="#d9cdb3"/>
+      <!-- ceiling lights -->
+      <rect x="40" y="18" width="80" height="6" rx="3" fill="#fff8d8"/><rect x="250" y="18" width="80" height="6" rx="3" fill="#fff8d8"/>
+      <!-- window -->
+      <rect x="18" y="60" width="150" height="120" rx="6" fill="#9fd0ea" stroke="#7a6a52" stroke-width="6"/>
+      <g fill="#6b8eb3"><rect x="26" y="120" width="22" height="56"/><rect x="52" y="100" width="28" height="76"/><rect x="84" y="130" width="18" height="46"/><rect x="106" y="90" width="30" height="86"/><rect x="140" y="125" width="22" height="51"/></g>
+      <g fill="#ffe9a8"><rect x="58" y="108" width="5" height="6"/><rect x="68" y="122" width="5" height="6"/><rect x="112" y="100" width="5" height="6"/><rect x="124" y="116" width="5" height="6"/><rect x="112" y="140" width="5" height="6"/></g>
+      <line x1="93" y1="60" x2="93" y2="180" stroke="#7a6a52" stroke-width="4"/>
+      <!-- clock -->
+      <circle cx="225" cy="62" r="22" fill="#fff" stroke="#2b2a33" stroke-width="4"/>
+      <line x1="225" y1="62" x2="225" y2="46" stroke="#2b2a33" stroke-width="3"/><line id="clockHand" x1="225" y1="62" x2="238" y2="68" stroke="#ff5a3c" stroke-width="3"/>
+      <!-- whiteboard -->
+      <rect x="262" y="88" width="126" height="86" rx="4" fill="#fff" stroke="#9aa0a8" stroke-width="5"/>
+      <text x="272" y="110" font-size="13" font-weight="900" fill="#2f3a5c" font-family="Noto Sans TC">KPI ↑↑↑</text>
+      <text x="272" y="128" font-size="10" fill="#d04040" font-family="Noto Sans TC">今天要好！</text>
+      <polyline points="272,162 292,150 308,156 328,136 350,140 376,112" fill="none" stroke="#2fa86b" stroke-width="3"/>
+      <text x="330" y="166" font-size="9" fill="#777" font-family="Noto Sans TC">(畫的)</text>
+      <!-- poster -->
+      <rect x="190" y="110" width="56" height="64" fill="#ffd36b" stroke="#2b2a33" stroke-width="3"/>
+      <text x="218" y="134" font-size="11" font-weight="900" text-anchor="middle" fill="#2b2a33" font-family="Noto Sans TC">團隊</text>
+      <text x="218" y="150" font-size="11" font-weight="900" text-anchor="middle" fill="#2b2a33" font-family="Noto Sans TC">就是</text>
+      <text x="218" y="166" font-size="11" font-weight="900" text-anchor="middle" fill="#ff5a3c" font-family="Noto Sans TC">家人</text>
+      <!-- floor -->
+      <rect y="300" width="400" height="100" fill="#b9a27e"/>
+      <g stroke="#a68f6b" stroke-width="2"><line x1="0" y1="330" x2="400" y2="330"/><line x1="0" y1="365" x2="400" y2="365"/></g>
+      <!-- desk -->
+      <rect x="150" y="258" width="250" height="16" fill="#8a5a3a"/>
+      <rect x="160" y="274" width="12" height="60" fill="#6e4529"/><rect x="380" y="274" width="12" height="60" fill="#6e4529"/>
+      <!-- paper stacks -->
+      <g fill="#fff" stroke="#bbb"><rect x="300" y="212" width="40" height="8"/><rect x="302" y="204" width="40" height="8"/><rect x="298" y="196" width="40" height="8"/><rect x="301" y="188" width="40" height="8"/><rect x="299" y="180" width="40" height="8"/><rect x="302" y="220" width="40" height="8"/><rect x="300" y="228" width="40" height="8"/><rect x="301" y="236" width="40" height="8"/><rect x="299" y="244" width="40" height="8"/><rect x="300" y="250" width="40" height="8"/></g>
+      <text x="320" y="176" font-size="9" text-anchor="middle" fill="#d04040" font-weight="900" font-family="Noto Sans TC">急件</text>
+      <!-- coffee -->
+      <rect x="350" y="236" width="18" height="22" rx="3" fill="#fff" stroke="#2b2a33" stroke-width="2"/>
+      <path d="M368 242 q8 0 0 10" fill="none" stroke="#2b2a33" stroke-width="2"/>
+      <!-- plant -->
+      <rect x="352" y="300" width="34" height="30" fill="#c96a3c"/>
+      <g fill="#3c9a5c"><ellipse cx="362" cy="292" rx="8" ry="18"/><ellipse cx="376" cy="288" rx="8" ry="20"/><ellipse cx="369" cy="280" rx="7" ry="22"/></g>
+    </svg>
+
+    <div id="timer">20</div>
+    <div class="bubble" id="bossBubble"></div>
+    <div class="bubble" id="subBubble"></div>
+
+    <!-- Boss: round, chubby, dazed -->
+    <div class="char" id="boss">
+      <svg viewBox="0 0 200 270">
+        <g class="body">
+          <ellipse cx="100" cy="262" rx="70" ry="8" fill="rgba(0,0,0,.15)"/>
+          <!-- legs -->
+          <rect x="62" y="226" width="26" height="34" rx="8" fill="#26304d"/><rect x="112" y="226" width="26" height="34" rx="8" fill="#26304d"/>
+          <ellipse cx="72" cy="260" rx="18" ry="7" fill="#111"/><ellipse cx="128" cy="260" rx="18" ry="7" fill="#111"/>
+          <!-- body -->
+          <ellipse cx="100" cy="182" rx="84" ry="66" fill="#3a4670"/>
+          <path d="M78 124 L100 200 L122 124 Z" fill="#fff"/>
+          <path d="M94 132 L106 132 L110 186 L100 200 L90 186 Z" fill="#e04848"/>
+          <text x="100" y="236" font-size="24" font-weight="900" text-anchor="middle" fill="#ffd36b" letter-spacing="2" font-family="Noto Sans TC,Arial Black,sans-serif">BOSS</text>
+          <!-- belly shine -->
+          <ellipse cx="60" cy="168" rx="12" ry="22" fill="rgba(255,255,255,.08)"/>
+          <!-- arms -->
+          <ellipse cx="22" cy="190" rx="16" ry="30" fill="#3a4670" transform="rotate(18 22 190)"/>
+          <ellipse cx="178" cy="186" rx="16" ry="30" fill="#3a4670" transform="rotate(-28 178 186)"/>
+          <circle cx="16" cy="218" r="12" fill="#f6d2b0"/>
+          <circle cx="182" cy="216" r="10" fill="#f6d2b0"/>
+          <!-- head -->
+          <circle cx="100" cy="80" r="58" fill="#f6d2b0"/>
+          <ellipse cx="44" cy="84" rx="9" ry="13" fill="#efc29c"/><ellipse cx="156" cy="84" rx="9" ry="13" fill="#efc29c"/>
+          <!-- side hair -->
+          <path d="M46 70 q2 -18 14 -24" stroke="#4a3a30" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <path d="M154 70 q-2 -18 -14 -24" stroke="#4a3a30" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <!-- single strand -->
+          <path d="M100 23 q-4 -16 10 -14 q10 2 2 10" stroke="#4a3a30" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <!-- eyebrows -->
+          <path d="M66 64 q10 -6 20 0" stroke="#4a3a30" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <path d="M114 60 q10 -8 20 -2" stroke="#4a3a30" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <!-- dazed eyes -->
+          <circle cx="76" cy="80" r="5" fill="#2b2a33"/><circle cx="124" cy="80" r="5" fill="#2b2a33"/>
+          <circle cx="78" cy="78" r="1.6" fill="#fff"/><circle cx="126" cy="78" r="1.6" fill="#fff"/>
+          <!-- blush -->
+          <ellipse cx="64" cy="98" rx="10" ry="6" fill="#f2a08c" opacity=".7"/><ellipse cx="136" cy="98" rx="10" ry="6" fill="#f2a08c" opacity=".7"/>
+          <!-- nose -->
+          <ellipse cx="100" cy="94" rx="7" ry="5" fill="#eeb48e"/>
+          <!-- mouth -->
+          <ellipse id="bossMouth" cx="100" cy="112" rx="10" ry="5" fill="#8a2d2d"/>
+          <!-- double chin -->
+          <path d="M72 128 q28 14 56 0" stroke="#e8b893" stroke-width="3" fill="none"/>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Subordinate: skinny, trying hard -->
+    <div class="char" id="sub">
+      <div id="hpWrap">❤️<div class="hpbar"><i id="hpBar"></i></div><span id="hpNum">100</span></div>
+      <svg viewBox="0 0 140 270">
+        <g class="body">
+          <ellipse cx="70" cy="264" rx="40" ry="6" fill="rgba(0,0,0,.15)"/>
+          <rect x="54" y="180" width="10" height="80" rx="4" fill="#3d3d48"/><rect x="76" y="180" width="10" height="80" rx="4" fill="#3d3d48"/>
+          <ellipse cx="58" cy="262" rx="11" ry="5" fill="#222"/><ellipse cx="82" cy="262" rx="11" ry="5" fill="#222"/>
+          <!-- torso -->
+          <rect x="46" y="104" width="48" height="84" rx="14" fill="#cfe3f3"/>
+          <path d="M62 104 L70 124 L78 104" fill="none" stroke="#9db8cc" stroke-width="3"/>
+          <rect x="66" y="124" width="8" height="40" fill="#2f3a5c"/>
+          <!-- lanyard -->
+          <path d="M58 106 L66 150 M82 106 L74 150" stroke="#e04848" stroke-width="2"/>
+          <rect x="62" y="148" width="16" height="20" rx="2" fill="#fff" stroke="#2b2a33" stroke-width="1.5"/>
+          <!-- arms holding laptop -->
+          <path d="M48 116 q-14 30 6 52" stroke="#cfe3f3" stroke-width="11" fill="none" stroke-linecap="round"/>
+          <path d="M92 116 q14 30 -6 52" stroke="#cfe3f3" stroke-width="11" fill="none" stroke-linecap="round"/>
+          <!-- laptop -->
+          <rect x="34" y="158" width="72" height="12" rx="3" fill="#8b93a1"/>
+          <rect x="40" y="130" width="60" height="30" rx="3" fill="#5c6472" transform="skewX(-6)"/>
+          <circle cx="54" cy="170" r="6" fill="#f3d4b8"/><circle cx="86" cy="170" r="6" fill="#f3d4b8"/>
+          <!-- neck & head -->
+          <rect x="64" y="88" width="12" height="18" fill="#f3d4b8"/>
+          <ellipse cx="70" cy="60" rx="30" ry="36" fill="#f3d4b8"/>
+          <!-- messy hair -->
+          <path d="M40 54 q0 -36 30 -36 q30 0 30 36 q-6 -14 -12 -10 q-4 -14 -12 -8 q-6 -12 -14 -2 q-8 -8 -12 6 q-6 -4 -10 14z" fill="#2b2a33"/>
+          <path d="M70 18 q4 -10 12 -8" stroke="#2b2a33" stroke-width="3" fill="none"/>
+          <!-- headband -->
+          <rect x="40" y="40" width="60" height="10" fill="#fff" stroke="#e04848" stroke-width="1.5"/>
+          <text x="70" y="49" font-size="9" font-weight="900" text-anchor="middle" fill="#e04848" font-family="Noto Sans TC">拼 了</text>
+          <path d="M100 44 l14 -6 M100 46 l12 6" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+          <!-- glasses -->
+          <circle cx="58" cy="64" r="9" fill="rgba(255,255,255,.35)" stroke="#2b2a33" stroke-width="2.5"/>
+          <circle cx="82" cy="64" r="9" fill="rgba(255,255,255,.35)" stroke="#2b2a33" stroke-width="2.5"/>
+          <line x1="67" y1="64" x2="73" y2="64" stroke="#2b2a33" stroke-width="2.5"/>
+          <circle cx="58" cy="64" r="2.5" fill="#2b2a33"/><circle cx="82" cy="64" r="2.5" fill="#2b2a33"/>
+          <!-- dark circles -->
+          <path d="M51 76 q7 4 14 0 M75 76 q7 4 14 0" stroke="#9c8fb8" stroke-width="2.5" fill="none"/>
+          <!-- determined mouth -->
+          <path id="subMouth" d="M62 86 q8 4 16 0" stroke="#8a2d2d" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <!-- sweat -->
+          <path id="sweat" d="M100 50 q5 8 0 12 q-5 -4 0 -12z" fill="#7cc4f0"/>
+        </g>
+      </svg>
+    </div>
+
+    <!-- the 鍋 -->
+    <svg id="wok" viewBox="0 0 120 60">
+      <path d="M10 18 Q60 70 110 18 Z" fill="#2b2a33"/>
+      <ellipse cx="60" cy="18" rx="50" ry="8" fill="#4a4a55"/>
+      <rect x="100" y="12" width="20" height="6" rx="3" fill="#8a5a3a"/>
+      <text x="60" y="44" font-size="18" font-weight="900" text-anchor="middle" fill="#ffd36b" font-family="Noto Sans TC">鍋</text>
+    </svg>
+    <div id="stamp">背鍋</div>
+  </div>
+
+  <div id="controls">
+    <div id="row">
+      <input id="answer" type="text" placeholder="按 🎤 說話，或打字回答" autocomplete="off" enterkeyhint="send">
+      <button id="mic" aria-label="語音輸入">🎤</button>
+      <button id="send">回</button>
+    </div>
+    <div id="sub-row">
+      <button id="hintBtn">💡 偷看關鍵字（爆肝+10）</button>
+      <span id="hintText"></span>
+      <span><button id="bgmBtn">🎵 音樂 開</button></span>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <!-- overlays -->
+  <div class="overlay" id="startOv">
+    <div class="card">
+      <span class="tag">上班模擬器</span>
+      <h1>主管出一張嘴<br><em>背鍋週記</em></h1>
+      <p>你是一位認真、瘦弱、黑眼圈很重的屬下。<br>主管圓圓胖胖、呆呆的，唯一的專長是「問問題」和「這是你的問題」。</p>
+      <ul>
+        <li>週一到週五共 <b>5 關</b>，每天主管從 75 句經典語錄裡隨機問 <b>5 題</b></li>
+        <li>按 🎤 用說的回答，關鍵字只要<b>對到其中 2 個字</b>就能過關（例：「準備好」說「準備」也算）</li>
+        <li>答不出、講錯話、或超時 → 一口鍋從天而降</li>
+        <li>屬下有 <b>❤️ 血條</b>，每背一口鍋扣 15 HP，歸零就過勞倒下；回家睡覺回 20 HP</li>
+        <li>講到「不知道」「不是我」這種禁語，主管會特別有感</li>
+      </ul>
+      <p style="font-size:12px;color:#888">麥克風不能用的話，點輸入框後用手機鍵盤上的 🎤 聽寫也可以。</p>
+      <button id="startBtn">打卡上班 ▶</button>
+    </div>
+  </div>
+  <div class="overlay hide" id="dayOv"><div class="card" id="dayCard"></div></div>
+</div>
+
+<script>
+const DAYS = [
+ {name:"週一", intro:"主管剛放完假，精神特別好，問題特別多。", qs:[
+  {q:"欸那個…上禮拜交代的東西，做好了沒？", k:["好了","做好","做完","完成","快好","在做","差不多","弄好"], ok:"很好！那順便把下禮拜的也一起做好。", ng:"還沒好？這很明顯是你的問題。"},
+  {q:"所以這個問題的原因，到底是什麼？", k:["原因","因為","系統","廠商","網路","需求","設定","資料","bug","版本"], ok:"嗯…聽起來很有道理，雖然我沒聽懂。", ng:"連原因都講不出來？那原因就是你。"},
+  {q:"那到底有沒有找到人解決了？", k:["找到","有找","聯絡","處理","負責","在解決","安排","窗口"], ok:"好，那出事的話我就說是你找的人。", ng:"沒找到人？那就是你，你就是那個人。"},
+  {q:"我昨天半夜在群組講的，你有看到嗎？", k:["看到","收到","已讀","有看","了解","知道了"], ok:"很好，以後半夜我都會講，記得回。", ng:"沒看到？手機是裝飾品嗎？"},
+  {q:"這個應該很簡單吧？今天下班前可以好吧？", k:["可以","沒問題","盡量","努力","ok","好的","沒有問題"], ok:"我就知道！我已經跟老闆說早上就好了。", ng:"這麼簡單都不行，我很難跟上面交代欸。"}]},
+ {name:"週二", intro:"客戶來了一通電話，主管開始焦慮地繞圈圈。", qs:[
+  {q:"客戶說他不滿意，但他也說不出哪裡不滿意，你怎麼看？", k:["修改","改","調整","溝通","確認","開會","了解","問清楚"], ok:"對，你去問，問完再跟我講客戶在想什麼。", ng:"你沒想法，那客戶不滿意就是你的問題。"},
+  {q:"我之前不是就說過要這樣做嗎？", k:["對","是的","您說得對","你說得對","沒錯","抱歉","我的疏忽","有說"], ok:"對嘛！（其實我也忘記我說了什麼）", ng:"我明明說過！（並沒有）"},
+  {q:"為什麼這個報表的數字跟我『想的』不一樣？", k:["確認","檢查","重算","核對","資料","來源","再看","重新"], ok:"好，算到跟我想的一樣為止。", ng:"數字錯了就是做報表的人錯，就是你。"},
+  {q:"你可以幫我開個會，討論一下要怎麼開會嗎？", k:["開會","安排","約","時間","會議","發邀請","好"], ok:"很好，會議前先開個會前會。", ng:"連會都不會開，是你的問題。"},
+  {q:"這個可以先做一版給我看看嗎？我看了再說要不要。", k:["可以","一版","先做","草稿","初版","好","沒問題"], ok:"讚，我看完應該會想要另一版。", ng:"一版都做不出來？那就是你的問題。"}]},
+ {name:"週三", intro:"小週末？不存在的。主管今天戴了新的老花眼鏡。", qs:[
+  {q:"你這個簡報字可以再大一點嗎？然後…再小一點。", k:["調整","改","大","小","好","沒問題","馬上"], ok:"嗯，現在這個大小剛好是我第一個說的那個。", ng:"字的大小都搞不定，是你的問題。"},
+  {q:"這個進度怎麼樣了？我五分鐘前問過，但我忘了。", k:["進度","百分之","%","一半","快好","八成","九成","差不多"], ok:"喔～好，我等一下再問一次。", ng:"進度都講不出來，那延誤就是你的。"},
+  {q:"老闆問我這個，我要怎麼回答他？", k:["回答","跟他說","就說","我來寫","我整理","我準備","回覆","稿"], ok:"好，那你寫好我照念，念錯算你的。", ng:"你都不知道，那我被罵就是你的問題。"},
+  {q:"這個不是你負責的嗎？", k:["我負責","是我","我來","處理","我會","是的","對"], ok:"好，那這個也給你負責，順便那個也是。", ng:"不是你負責？那現在是了。"},
+  {q:"你有沒有什麼想法？沒有的話就照我的做。", k:["想法","建議","我覺得","照您","照你","可以試","方案","提案"], ok:"不錯不錯，那就照我原本的做。", ng:"沒想法，那做壞了也是你的問題。"}]},
+ {name:"週四", intro:"主管昨晚看了一篇〈頂尖主管的 7 個習慣〉，今天特別有幹勁。", qs:[
+  {q:"欸，你最近怎麼都『準時』下班？", k:["做完","完成","效率","加班","晚走","趕完","處理好"], ok:"做完了是吧？那我再多給你一點。", ng:"準時下班，代表事情不夠多，是你的問題。"},
+  {q:"這個要不要再想一下，有沒有更好的做法？", k:["想","研究","優化","改善","評估","比較","好"], ok:"對，想好了再給我三個方案選。", ng:"不想更好的做法，那爛也是你的問題。"},
+  {q:"這個 bug 到底是誰寫的？", k:["查","確認","修","處理","找原因","追","log","紀錄"], ok:"好，查到是誰之前，先算你的。", ng:"不知道是誰寫的？那就是你寫的。"},
+  {q:"可以做得跟對手一樣好，但不要花錢嗎？", k:["可以","試試","免費","研究","盡量","開源","想辦法"], ok:"太好了，那順便比對手再好一點。", ng:"做不到？那預算不夠也是你的問題。"},
+  {q:"明天才要的東西，今天可以先給我嗎？", k:["可以","今天","盡量","趕","加班","沒問題","好"], ok:"感謝配合，其實是昨天就要了。", ng:"不行？那你明天也不用給了…還是要給。"}]},
+ {name:"週五", intro:"下班前一小時，是一週中最危險的時刻。", qs:[
+  {q:"這週末有空嗎？就…隨便問問。", k:["有空","沒空","有事","可以","看情況","要陪家人","出國"], ok:"喔～好喔，那我禮拜天晚上再傳訊息給你。", ng:"不回答？那我就當你有空了。"},
+  {q:"下禮拜一早上要報告，資料準備好了嗎？", k:["準備好","好了","在準備","週末","完成","做好","整理"], ok:"很好，我週一早上 8:59 再看。", ng:"沒準備好？那報告失敗就是你的問題。"},
+  {q:"這週的問題總結一下，主要是誰的問題？", k:["我的","我","大家","團隊","流程","一起","共同"], ok:"好，你自己說的喔，我有錄音。", ng:"你不說？那我就幫你說：是你的問題。"},
+  {q:"你覺得我這週的表現怎麼樣？", k:["很好","棒","英明","辛苦","優秀","厲害","帶得好","專業"], ok:"呵呵，我也這麼覺得，考績你懂的。", ng:"你這個回答，我會記在你的考績上。"},
+  {q:"好，那今天先這樣…喔對了，最後一個小問題。", k:["請說","好","是","沒問題","您說","你說","在"], ok:"沒事，就是想看你緊張。下班吧！（6:47）", ng:"什麼態度？這就是你的問題。"}]}
+];
+
+
+const THEMES=["裝作看大局","空泛玄學・無限通靈","盲目樂觀・低估難度","事前不參與・事後馬後炮","轉嫁責任・向上交代"];
+const E=(q,k,ok,ng)=>({q,k,ok,ng});
+const EXTRA=[[
+ E("我只看大方向，細節你們自己去研究。",["研究","細節","我來","處理","了解","收到"],"很好，研究完用一句話跟我說，我只看大方向。","細節沒研究好，就是你的問題。"),
+ E("我是策略面的，執行的東西你們是專業，自己處理。",["處理","執行","我來","交給我","收到","沒問題"],"對，策略是我的，功勞也是我的。","你是專業的欸，這樣也不會？"),
+ E("不要拿這麼細的東西來煩我，你直接告訴我結論就好。",["結論","總之","簡單說","重點","一句話","就是"],"嗯，結論很好，雖然我還是沒聽懂。","結論呢？我聽不懂就是你的問題。"),
+ E("這塊你比我熟，你全權決定，不用什麼都問我。",["決定","我來","我處理","好","了解","收到"],"很好，你全權決定，出事你全權負責。","叫你決定又不決定，是你的問題。"),
+ E("我不用懂技術，我只要懂怎麼用人就好。",["是","對","沒錯","說得對","英明","厲害"],"你很懂嘛，被我用得很好。","你這表情什麼意思？是你的問題。"),
+ E("你不要只會問我怎麼做，你要帶著方案來找我！",["方案","提案","建議","a案","b案","選項","計畫"],"嗯…那我選你沒推薦的那個。","沒方案？那失敗就是你的問題。"),
+ E("如果連這個都要我教你，那公司請你來幹嘛？",["自己","我會","學","研究","處理","搞定"],"這樣才對，反正我也不會教。","果然要我教，這就是你的問題。"),
+ E("我現在很忙，你先自己想辦法搞定，搞不定再說。",["搞定","想辦法","處理","我來","沒問題","收到"],"很好，我去忙了（滑手機）。","搞不定？那就是你的問題啊。"),
+ E("這件事很單純，你們自己協調一下就好了，不用透過我。",["協調","溝通","聯絡","討論","處理","我來"],"協調好了記得說是我指示的。","這麼單純都協調不好，是你的問題。"),
+ E("我相信你的專業判斷，放手去做吧（出事我不負責）。",["放手","去做","好","收到","沒問題","謝謝"],"加油，我在後面看著（準備切割）。","相信你還這種反應，是你的問題。")],[
+ E("我覺得這個方向還不夠成熟，你再回去沉澱一下。",["沉澱","再想","修改","調整","回去","好"],"嗯，沉澱完記得明早交。","不沉澱？難怪不成熟，是你的問題。"),
+ E("我要的是一種『感覺』，你現在做出來的太死板了。",["感覺","活潑","調整","改","氛圍","風格"],"對對對，就是這種感覺…不對，再改一版。","沒有感覺，是你的問題。"),
+ E("這個提案沒有打到痛點，你再重新梳理一下邏輯。",["痛點","梳理","邏輯","整理","重新","改"],"嗯，痛點打到了，我好痛。","痛點沒打到，倒是打到我了，是你的問題。"),
+ E("你多去看看業界標竿是怎麼做的，不要閉門造車。",["標竿","參考","研究","看看","競品","學習","對手"],"好，做得比標竿好，預算不變。","閉門造車還造壞，是你的問題。"),
+ E("這個東西好像少了點什麼，說不上來，你再改一版看看。",["改","一版","調整","補","加","好"],"嗯…還是少了點什麼，可能少了加班。","少了什麼？少了你的用心。"),
+ E("我們要追求的是質的飛躍，不是量的堆疊，你懂我意思嗎？",["懂","了解","明白","知道","質","飛躍"],"很好，那你解釋給我聽我是什麼意思。","不懂？那就是你的問題。"),
+ E("你先做三個不同風格的版本出來，我看了才知道我要哪一種。",["三個","三版","版本","風格","可以","好"],"嗯…我選第四種。","三個都做不出來？是你的問題。"),
+ E("這不是我心目中的樣子，但我也說不出來哪裡怪，你再想想。",["想想","再想","改","調整","討論","好"],"很接近了，接近我說不出的那個樣子。","我說不出的你都猜不到，是你的問題。"),
+ E("你的思維要再跳脫一點，不要被現有的框架限制住了。",["跳脫","創新","框架","突破","創意","試試"],"很好，但不要跳脫我的框架。","框住你的，是你自己。"),
+ E("這件事沒有標準答案，你要自己去摸索出最佳解。",["摸索","研究","嘗試","試試","找","最佳解"],"找到最佳解跟我說，我拿去報告。","摸不出來，是你的問題。")],[
+ E("這不就是改幾個數字而已嗎？怎麼要這麼久？",["馬上","快好","加快","今天","盡快","趕"],"對嘛，幾個數字而已（共三萬筆）。","改幾個數字這麼久，是你的問題。"),
+ E("這很簡單吧？我看別人做一下就出來了。",["簡單","可以","沒問題","馬上","好","盡快"],"我就說吧，那順便把別人的也做了。","別人可以你不行，是你的問題。"),
+ E("你就先隨便弄一弄，明天早上開會前給我。",["明天","好","可以","開會前","沒問題","收到"],"記得，隨便弄但要很完整。","隨便弄都弄不好，是你的問題。"),
+ E("系統跑一下不就有了嗎？為什麼要花這麼多時間？",["跑","系統","資料","確認","馬上","處理"],"你看，跑一下就有了（你跑了三天）。","系統會跑，你不會，是你的問題。"),
+ E("客戶要的東西很基本，你們照著做應該沒什麼難度。",["照著做","可以","沒問題","好","處理","沒難度"],"很好，客戶剛又加了二十個基本需求。","這麼基本都不行，是你的問題。"),
+ E("這個預算雖然少，但你們發揮創意一樣可以做得很好。",["創意","可以","想辦法","盡量","省","努力"],"太好了，下次預算再砍一半。","沒創意是你的問題，不是預算的問題。"),
+ E("人手不夠就大家互相支援一下，這點小事應該難不倒你們。",["支援","互相","一起","可以","沒問題","好"],"很好，我精神上支援你們。","這點小事都難倒你，是你的問題。"),
+ E("我已經幫你們跟老闆答應下來了，時間應該夠吧？",["夠","可以","盡量","趕","加班","沒問題"],"太好了，我就說我的團隊很強（指我）。","不夠？我都答應了，是你的問題。"),
+ E("這不需要什麼前置作業吧？今天開始動工應該來得及。",["來得及","動工","今天","開始","可以","馬上"],"很好，前置作業你週末補一下。","來不及就是你的問題。"),
+ E("有這麼複雜嗎？你是不是把事情想得太難了？",["簡單","沒那麼","可以","馬上","好","處理","解決"],"對嘛，是你想太多（其實真的很複雜）。","想太難的人有問題，就是你。")],[
+ E("這件事當初你是怎麼評估的？怎麼會做成這樣？",["評估","檢討","改善","補救","原因","報告"],"嗯，那檢討報告明天給我。","評估錯了就是你的問題。"),
+ E("你做之前怎麼沒有先跟我確認一下？（明明問了說隨便）",["確認","抱歉","下次","以後","報告","疏忽"],"對，下次要先確認，我可能又會說隨便。","沒確認就是你的問題。"),
+ E("這個風險你一開始就應該要預判到啊！",["預判","風險","評估","下次","改善","注意"],"很好，下次要預判到我會說這句話。","沒預判到，是你的問題。"),
+ E("雖然我當初說交給你決定，但你也要懂得拿捏分寸啊。",["分寸","拿捏","了解","抱歉","下次","注意"],"嗯，分寸就是：猜我想要什麼。","沒分寸是你的問題。"),
+ E("這個問題很明顯啊，你怎麼會現在才發現？",["抱歉","發現","處理","修正","改善","補救"],"其實我早就發現了，只是沒講。","現在才發現，是你的問題。"),
+ E("我早就覺得這樣做會有問題，只是想讓你自己去碰壁學個教訓。",["謝謝","學到","教訓","了解","感謝","檢討"],"不客氣，下次我也會讓你碰壁。","教訓都學不到，是你的問題。"),
+ E("老闆現在很不滿意，你想辦法去跟他們解釋清楚。",["解釋","說明","報告","溝通","處理","我去"],"解釋時記得說我有提醒過你。","你不解釋，那就是你的問題。"),
+ E("這份報告數據怎麼對不起來？你上去報告的時候自己圓一下。",["圓","修正","核對","確認","處理","說明"],"圓得很好，以後都你上去。","圓不回來，是你的問題。"),
+ E("別跟我講過程有多辛苦，上面只看最終結果。",["結果","了解","好","收到","完成","沒問題"],"很好，結果我會報告的（用我的名字）。","還在講過程？是你的問題。"),
+ E("現在問題已經發生了，追究誰不懂也沒用，你趕快去善後。",["善後","處理","馬上","解決","我去","補救"],"嗯，善後完再來追究你。","不善後，那就追究你。")],[
+ E("等一下開會，這個部分由你來跟大老闆直接報告。",["報告","好","可以","準備","沒問題","我來"],"很好，講好是我的，講不好是你的。","不敢報告？那這部分就是你的問題。"),
+ E("這個專案你掛主要負責人，這樣對你的履歷比較好看。",["謝謝","好","負責","可以","沒問題","感謝"],"不客氣，出事時你的名字也比較顯眼。","給你機會還不要，是你的問題。"),
+ E("跨部門溝通這塊你去處理，畢竟你比較了解第一線的狀況。",["溝通","處理","我去","協調","好","沒問題"],"很好，吵起來記得不要提到我。","溝通不好就是你的問題。"),
+ E("廠商那邊一直在吵，你比較有耐心，你去跟他們周旋。",["周旋","處理","聯絡","溝通","我去","好"],"耐心是你最大的優點（也是唯一）。","沒耐心，是你的問題。"),
+ E("這份簽呈你擬好，直接用我的名字送出去就好。",["擬","簽呈","好","送","可以","沒問題"],"很好，被退件就是你擬得不好。","簽呈都擬不好，是你的問題。"),
+ E("你先把這個爛攤子接起來，以後有好康的我一定優先想到你。",["接","好","可以","沒問題","收到","處理"],"好康的我先想，想完就忘了。","不接？那爛攤子就是你造成的。"),
+ E("關於這個新領域，你先去研究一下，下禮拜開會教大家。",["研究","教","分享","準備","好","可以"],"很好，我會坐第一排滑手機。","研究不出來，是你的問題。"),
+ E("老闆突然要這份資料，我對這塊不熟，你今天幫我生出來。",["生","今天","可以","馬上","準備","好","處理"],"太好了，我拿給老闆說是我做的。","生不出來，是你的問題。"),
+ E("這件事就交給你全權對接了，以後有問題他們直接找你就好。",["對接","好","可以","沒問題","負責","處理"],"很好，我的電話可以關機了。","不對接，那問題全部找你。"),
+ E("做得好是團隊的功勞，做不好……你自己要檢討一下。",["檢討","團隊","好","了解","是","努力"],"對，團隊的功勞＝我的功勞。","不檢討？那就是你的問題。")]];
+let today=[];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+
+const TRAPS = [
+ {k:["不知道","不清楚","不曉得"], r:"不知道？那我請你來是做什麼的？", pots:1},
+ {k:["不是我","不關我","跟我無關","與我無關"], r:"不是你？那是我嗎？（瞪）", pots:1},
+ {k:["你的問題","主管的問題","是你","你自己"], r:"你說什麼？我沒聽清楚…算了，記你兩口鍋。", pots:2},
+ {k:["離職","辭職","不幹了"], r:"好啊，先交接，交接大概三年。", pots:1},
+ {k:["加薪","調薪","獎金"], r:"這個問題很好，我們明年再討論。", pots:1},
+];
+const BLAME_EXTRA = ["我不是早就說過了嗎？（並沒有）","你這樣我很難跟老闆交代欸。","我不管，明天給我一個交代。","你要不要檢討一下自己？","這個你自己扛一下。"];
+const TIMEOUT_LINES = ["不講話是怎樣？沉默就是你的問題。","喂？有在聽嗎？這也是你的問題。","你這樣不回我，我只好寫在週報上。"];
+
+const S2T = {"没":"沒","问":"問","题":"題","处":"處","认":"認","确":"確","经":"經","准":"準","备":"備","说":"說","对":"對","错":"錯","这":"這","个":"個","会":"會","们":"們","联":"聯","络":"絡","负":"負","责":"責","调":"調","优":"優","试":"試","费":"費","议":"議","约":"約","时":"時","间":"間","览":"覽","读":"讀","长":"長","厉":"厲","专":"專","业":"業","辛":"辛","赶":"趕","边":"邊","发":"發","请":"請","帮":"幫","关":"關","与":"與","无":"無","职":"職","干":"幹","奖":"獎","调":"調","薪":"薪","进":"進","赶":"趕","录":"錄","见":"見","样":"樣","还":"還","论":"論","检":"檢","查":"查","较":"較","评":"評","估":"估","开":"開","过":"過","几":"幾","双":"雙","览":"覽","觉":"覺","得":"得","晓":"曉","楚":"楚","团":"團","队":"隊","陪":"陪","家":"家","国":"國","绍":"紹","决":"決","稿":"稿","复":"覆","围":"圍","达":"達"};
+const hit = (a,k) => { k=norm(k); if(a.includes(k)) return true; if(k.length<3) return false;
+  for(let i=0;i<k.length-1;i++){ if(a.includes(k.slice(i,i+2))) return true; } return false; };
+const hitStr = (a,k) => { k=norm(k); if(a.includes(k)) return k; if(k.length<3) return null;
+  for(let i=0;i<k.length-1;i++){ const b=k.slice(i,i+2); if(a.includes(b)) return b; } return null; };
+const esc = t => t.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// highlight normalized match m inside the raw answer text
+function markRaw(raw,m){
+  if(!m) return esc(raw);
+  const map=[]; let n="";
+  [...raw].forEach((c,i)=>{ const x=norm(c); if(x){ n+=x; map.push(i);} });
+  const at=n.indexOf(m); if(at<0) return esc(raw);
+  const chars=[...raw], s0=map[at], s1=map[at+m.length-1]+1;
+  return esc(chars.slice(0,s0).join(""))+'<span class="kw">'+esc(chars.slice(s0,s1).join(""))+'</span>'+esc(chars.slice(s1).join(""));
+}
+const norm = s => s.toLowerCase().replace(/[\s，。！？、,.!?~～…「」『』"']/g,"").split("").map(c=>S2T[c]||c).join("");
+
+let day=0, hp=100, qi=0, sat=60, liver=10, pots=0, timer=null, tLeft=20, busy=false, ttsOn=false, log=[], weekPass=0, hintUsed=false;
+const $ = id => document.getElementById(id);
+
+function toast(t,ms=2600){const e=$("toast");e.textContent=t;e.classList.add("show");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("show"),ms);}
+function hud(){
+  $("dayLabel").textContent = DAYS[day].name+"・第 "+(day+1)+" 關";
+  $("qLabel").textContent = "第 "+Math.min(qi+1,5)+" / 5 題";
+  $("satBar").style.width = Math.max(0,Math.min(100,sat))+"%";
+  $("livBar").style.width = Math.max(0,Math.min(100,liver))+"%";
+  $("potCount").textContent = "🍳 背鍋 "+pots;
+  hp=Math.max(0,Math.min(100,hp));$("hpBar").style.width=hp+"%";$("hpNum").textContent=hp;
+  $("hpBar").style.background=hp>50?"#3fd27a":hp>25?"#f2b632":"#e04848";$("hpWrap").classList.toggle("low",hp<=25);
+  $("clockHand").setAttribute("transform","rotate("+(day*60+qi*12)+" 225 62)");
+}
+// ---- boss voice: prefer a male Chinese voice; otherwise deepen pitch ----
+const MALE=/zhiwei|yunjhe|yunxi|yunyang|yunjian|yunze|yunfeng|yunhao|kangkang|li-?mu|liang|han\b|male|男/i;
+let zhVoices=[], bossVoice=null, voiceIsMale=false;
+function loadVoices(){
+  if(!window.speechSynthesis) return;
+  const all=speechSynthesis.getVoices(); if(!all.length) return;
+  zhVoices=all.filter(v=>/^(zh|cmn|yue)/i.test(v.lang));
+  const tw=v=>/TW|Hant/i.test(v.lang);
+  const pick = zhVoices.find(v=>MALE.test(v.name)&&tw(v)) || zhVoices.find(v=>MALE.test(v.name)) || zhVoices.find(tw) || zhVoices[0] || null;
+  if(!bossVoice) { bossVoice=pick; voiceIsMale=!!(pick&&MALE.test(pick.name)); }
+  const sel=$("voiceSel"); if(!sel) return; sel.style.display=zhVoices.length?"":"none";
+  sel.innerHTML=zhVoices.map((v,i)=>`<option value="${i}" ${v===bossVoice?"selected":""}>${MALE.test(v.name)?"👨 ":""}${v.name.replace(/Microsoft |Google |Online \(Natural\)|- .*$/g,"").trim()}</option>`).join("") || "<option>預設</option>";
+}
+if(window.speechSynthesis){ loadVoices(); speechSynthesis.onvoiceschanged=loadVoices; }
+function speak(text){
+  if(!ttsOn||!window.speechSynthesis) return;
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text.replace(/（.*?）/g,""));u.lang="zh-TW";
+    if(!bossVoice) loadVoices();
+    if(bossVoice) u.voice=bossVoice;
+    // male voice: slightly low & slow; female/unknown voice: push pitch way down so it sounds like a 大叔
+    u.pitch = voiceIsMale ? 0.75 : 0.1; u.rate = 0.92;
+    speechSynthesis.speak(u);}catch(e){}
+}
+function bossSay(text,sub){
+  const b=$("bossBubble");b.innerHTML=text+(sub?"<small>"+sub+"</small>":"");b.classList.add("show"); layout();
+  const boss=$("boss");boss.classList.add("talking");clearTimeout(boss._t);boss._t=setTimeout(()=>boss.classList.remove("talking"),Math.min(3200,text.length*160));
+  speak(text); if(ttsOn) duck(Math.min(4000,text.length*220));
+}
+function subSay(text,html){const b=$("subBubble");if(html)b.innerHTML=html;else b.textContent=text;b.classList.add("show");layout();}
+function stamp(txt,ok){const s=$("stamp");s.textContent=txt;s.className=ok?"ok":"";void s.offsetWidth;s.classList.add("show");}
+function dropWok(){const w=$("wok"),sub=$("sub");w.style.width=(sub.offsetWidth*0.8)+"px";w.style.right=(sub.parentNode.clientWidth-sub.offsetLeft-sub.offsetWidth*0.92)+"px";w.style.setProperty("--land",(sub.offsetTop+sub.offsetHeight*0.02)+"px");w.className="";void w.offsetWidth;w.classList.add("drop");setTimeout(()=>w.classList.add("gone"),1900);}
+
+function startDay(){
+  qi=0;log=[];
+  const d=DAYS[day];
+  today=shuffle(d.qs.concat(EXTRA[day])).slice(0,5);
+  $("dayCard").innerHTML=`<span class="tag">第 ${day+1} 關</span><h2>${d.name}：${THEMES[day]}</h2><p>${d.intro}</p><p style="font-size:12px;color:#888">今天要撐過 5 個問題</p><button id="goDay">進辦公室 ▶</button>`;
+  $("dayOv").classList.remove("hide");
+  $("goDay").onclick=()=>{$("dayOv").classList.add("hide");askQ();};
+  hud();
+}
+function askQ(){
+  busy=false;hintUsed=false;$("hintText").textContent="";
+  $("subBubble").classList.remove("show");$("sub").className="char";
+  const q=today[qi];hud();
+  bossSay(q.q);
+  $("answer").value="";
+  startTimer();
+}
+function startTimer(){
+  clearInterval(timer);tLeft=20;$("timer").textContent=tLeft;$("timer").classList.remove("hurry");
+  timer=setInterval(()=>{if(recOn)return;tLeft--;$("timer").textContent=tLeft;if(tLeft<=5)$("timer").classList.add("hurry");if(tLeft<=0){clearInterval(timer);judge(null);}},1000);
+}
+function judge(raw){
+  if(busy) return; busy=true; clearInterval(timer); $("timer").classList.remove("hurry"); stopMic();
+  const q=today[qi];
+  let pass=false, reply, gain=0;
+  if(raw===null){ reply=TIMEOUT_LINES[Math.floor(Math.random()*TIMEOUT_LINES.length)]; gain=1; subSay("（……還在想）"); }
+  else{
+    const a=norm(raw);
+    const trapK=TRAPS.flatMap(t=>t.k.map(k=>({t,k}))).find(o=>a.includes(norm(o.k)));
+    let m=null;
+    if(trapK){ reply=trapK.t.r; gain=trapK.t.pots; m=norm(trapK.k); }
+    else { for(const k of q.k){ m=hitStr(a,k); if(m) break; }
+      if(m){ pass=true; reply=q.ok; } else { reply=q.ng; gain=1; } }
+    subSay(raw, markRaw(raw,m));
+  }
+  liver+= pass?4:7;
+  if(pass){hp+=3;floatNum("+3",true);sfx("ok");}else{const d=15*gain;hp-=d;floatNum("-"+d);sfx("wok");}
+  if(pass){
+    sat+=8; weekPass++;
+    $("sub").className="char happy"; stamp("過關",true);
+    // meme: even when you pass, it's still your problem in advance
+    const pre = Math.random()<0.3 ? "不過先講好，之後出事還是你的問題喔。" : "";
+    bossSay(reply,pre);
+    log.push({ok:true,q:q.q});
+  }else{
+    sat-=12; pots+=gain;
+    $("sub").className="char sad"; dropWok(); stamp(gain>1?"背兩鍋":"背鍋",false);
+    bossSay(reply, BLAME_EXTRA[Math.floor(Math.random()*BLAME_EXTRA.length)]);
+    $("hintText").textContent="關鍵字：「" + q.k.slice(0,3).join("」「")+"」";
+    log.push({ok:false,q:q.q});
+  }
+  hud();
+  setTimeout(()=>{ if(hp<=0) gameOver(); else next(); }, pass?3200:4200);
+}
+function next(){
+  qi++;
+  if(qi<5){askQ();return;}
+  endDay();
+}
+function endDay(){
+  const passToday=log.filter(l=>l.ok).length;
+  const quips=["今天主管很滿意，所以決定明天問更多。","主管說：『今天辛苦了』，然後又問了一題。","主管下班了，你的待辦清單沒有。","主管說明天早上 8 點開個短會，大概兩小時。","你準時下班失敗，但至少還活著。"];
+  const isLast=day===4;
+  $("dayCard").innerHTML=`<span class="tag">${DAYS[day].name} 下班</span><h2>今日過關 ${passToday} / 5</h2>
+   <p>${quips[Math.min(4,5-passToday)]}</p>
+   <div class="log">${log.map(l=>`<div class="${l.ok?'g':'r'}">${l.ok?'✔':'🍳'} ${l.q}</div>`).join("")}</div>
+   <p style="font-size:12px;color:#888">目前 ❤️ ${hp} HP${isLast?"":"（睡一覺 +20）"}</p><button id="nextDay">${isLast?"看本週考績 ▶":"回家睡 4 小時 ▶"}</button>`;
+  $("dayOv").classList.remove("hide");
+  $("nextDay").onclick=()=>{ if(isLast){weekEnd();} else {day++;liver=Math.max(5,liver-6);hp+=20;startDay();} };
+}
+function weekEnd(){
+  let title,desc;
+  if(weekPass>=24){title="主管接班人";desc="恭喜，你已學會用問題回答問題。下一步：只出一張嘴。";}
+  else if(weekPass>=19){title="年度最佳屬下";desc="鍋背得少、話接得好，主管把你的功勞寫進他的簡報了。";}
+  else if(weekPass>=13){title="資深背鍋俠";desc="專業背鍋，鍋到人到。主管表示：有你在真好（因為有人可以怪）。";}
+  else if(weekPass>=7){title="試用期延長";desc="主管說你很有潛力，潛力是指可以背更多鍋。";}
+  else {title="請到人資部一趟";desc="不是你的問題……好啦，是你的問題（主管說的）。";}
+  $("dayCard").innerHTML=`<span class="tag">週五 18:47・本週考績</span>
+   <div class="big">${title}</div>
+   <p>${desc}</p>
+   <p>過關 <b>${weekPass}</b> / 25　｜　背鍋 <b>${pots}</b> 口　｜　爆肝 <b>${Math.min(100,liver)}%</b></p>
+   <p style="font-size:12px;color:#888">下週一，主管又會帶著新的問題回來。</p>
+   <button id="again">下週再上班 ↻</button>`;
+  $("again").onclick=()=>{day=0;sat=60;liver=10;pots=0;weekPass=0;hp=100;startDay();};
+}
+
+function floatNum(t,heal){const e=document.createElement("div");e.className="dmg"+(heal?" heal":"");e.textContent=t;$("stage").appendChild(e);setTimeout(()=>e.remove(),1200);}
+function gameOver(){
+  $("dayCard").innerHTML=`<span class="tag">${DAYS[day].name}・第 ${qi+1} 題</span><div class="big">過勞倒下</div>
+   <p>屬下的 HP 歸零，被抬出辦公室。<br>主管看著你的空位說：「他怎麼這麼不耐操？<b>是他自己的問題</b>。」</p>
+   <p>撐到 ${DAYS[day].name}　｜　過關 <b>${weekPass}</b> 題　｜　背鍋 <b>${pots}</b> 口</p>
+   <button id="again">喝杯咖啡重新上班 ↻</button>`;
+  $("dayOv").classList.remove("hide"); sfx("over");
+  $("again").onclick=()=>{day=0;sat=60;liver=10;pots=0;weekPass=0;hp=100;startDay();};
+}
+
+/* ---------- layout: keep speech bubbles off the faces ---------- */
+function layout(){
+  const st=$("stage"), H=st.clientHeight, W=st.clientWidth, pad=H*0.04;
+  const bb=$("bossBubble"), sb=$("subBubble");
+  const B = bb.offsetTop + Math.max(bb.offsetHeight,56) + 16;           // bottom of boss bubble incl. tail
+  // boss head starts ~7% down its drawing, so its top may sit just under the bubble
+  const bossH = Math.max(80,(H - pad - B)/0.93);
+  $("boss").style.width = Math.min(W*0.52, 250, bossH*200/270)+"px";
+  // subordinate: answer bubble sits under the boss bubble, then HP bar, then the body
+  const sbH = Math.max(sb.offsetHeight, 46);
+  sb.style.top = (B+2)+"px";
+  const subH = Math.max(80, H - pad - (B + sbH + 48));
+  $("sub").style.width = Math.min(W*0.34, 165, subH*140/270)+"px";
+}
+window.addEventListener("resize",layout);
+
+/* ---------- music (Web Audio, generated) ---------- */
+let actx=null, master=null, bgmOn=true, bgmTimer=null, step=0, nextT=0;
+const mtof=m=>440*Math.pow(2,(m-69)/12);
+const MEL=[72,0,76,79,77,0,76,74,72,0,74,76,74,0,71,0, 69,0,72,76,74,0,72,71,72,0,0,79,76,0,74,0];
+const BAS=[48,55,48,55,53,60,53,60,45,52,45,52,43,50,43,50];
+function initAudio(){ if(actx) return; try{actx=new (window.AudioContext||window.webkitAudioContext)();master=actx.createGain();master.gain.value=.12;master.connect(actx.destination);}catch(e){actx=null;} }
+function tone(f,t,d,type,v){const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(master);o.start(t);o.stop(t+d+.02);return o;}
+function hat(t,v){const b=actx.createBuffer(1,actx.sampleRate*.04,actx.sampleRate),c=b.getChannelData(0);for(let i=0;i<c.length;i++)c[i]=(Math.random()*2-1)*(1-i/c.length);const n=actx.createBufferSource(),g=actx.createGain(),h=actx.createBiquadFilter();h.type="highpass";h.frequency.value=6000;n.buffer=b;g.gain.value=v;n.connect(h);h.connect(g);g.connect(master);n.start(t);}
+function sched(){
+  const sd = hp<=25 ? .1 : .125;           // tempo speeds up when HP is low
+  while(nextT < actx.currentTime+.2){
+    const m=MEL[step%32]; if(m) tone(mtof(m),nextT,sd*1.6,"square",.25);
+    if(step%2===0) tone(mtof(BAS[(step>>1)%16]),nextT,sd*1.8,"triangle",.5);
+    if(step%2===1) hat(nextT,.25);
+    if(step%8===0) tone(70,nextT,.15,"sine",.7);
+    nextT+=sd; step++;
+  }
+}
+function bgmStart(){ initAudio(); if(!actx||!bgmOn) return; try{actx.resume();}catch(e){} if(bgmTimer) return; nextT=actx.currentTime+.05; bgmTimer=setInterval(sched,50); }
+function bgmStop(){ clearInterval(bgmTimer); bgmTimer=null; }
+function duck(ms){ if(!master) return; const t=actx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(.04,t,.05); master.gain.setTargetAtTime(.12,t+ms/1000,.3); }
+function sfx(kind){ if(!actx) return; const t=actx.currentTime+.01;
+  if(kind==="ok"){tone(mtof(84),t,.12,"square",.4);tone(mtof(88),t+.1,.12,"square",.4);tone(mtof(91),t+.2,.25,"square",.4);}
+  else if(kind==="wok"){const o=tone(600,t,.55,"square",.35);o.frequency.exponentialRampToValueAtTime(90,t+.5);tone(180,t+.55,.6,"triangle",.8);tone(273,t+.55,.5,"sine",.4);hat(t+.55,.9);}
+  else if(kind==="over"){[67,63,60,55].forEach((m,i)=>tone(mtof(m),t+i*.25,.3,"triangle",.6));}
+}
+$("bgmBtn").onclick=()=>{ bgmOn=!bgmOn; $("bgmBtn").textContent="🎵 音樂 "+(bgmOn?"開":"關"); bgmOn?bgmStart():bgmStop(); };
+
+/* ---------- voice input ---------- */
+const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null, recOn=false;
+function stopMic(){ if(rec&&recOn){try{rec.stop();}catch(e){}} recOn=false; $("mic").classList.remove("on"); }
+function micFail(){ stopMic(); toast("這裡開不了麥克風 😢 請點輸入框，用手機鍵盤上的 🎤 聽寫回答（一樣有效）",4200); $("answer").focus(); }
+$("mic").onclick=()=>{
+  if(busy) return;
+  if(!SR){micFail();return;}
+  if(recOn){stopMic();return;}
+  try{
+    rec=new SR(); rec.lang="zh-TW"; rec.interimResults=true; rec.continuous=false;
+    rec.onresult=e=>{let t="";for(const r of e.results)t+=r[0].transcript;$("answer").value=t;
+      if(e.results[e.results.length-1].isFinal){stopMic();setTimeout(()=>submit(),300);}};
+    rec.onerror=e=>{ if(e.error==="no-speech"){stopMic();toast("沒聽到聲音，再說一次？");} else micFail(); };
+    rec.onend=()=>{recOn=false;$("mic").classList.remove("on");};
+    if(window.speechSynthesis) speechSynthesis.cancel();
+    rec.start(); recOn=true; $("mic").classList.add("on"); toast("🎤 請說…");
+  }catch(e){micFail();}
+};
+function submit(){ const v=$("answer").value.trim(); if(!v||busy) return; $("answer").blur(); judge(v); }
+$("send").onclick=submit;
+$("answer").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();submit();}});
+$("hintBtn").onclick=()=>{ if(busy||hintUsed) return; hintUsed=true; liver+=10; hud(); $("hintText").textContent="提示：「"+today[qi].k[0]+"」之類的"; };
+$("startBtn").onclick=()=>{ bgmStart(); $("startOv").classList.add("hide"); try{speechSynthesis&&speechSynthesis.getVoices();}catch(e){} startDay(); };
+hud(); layout();
+</script>
+</body>
+</html>
