@@ -77,7 +77,7 @@ button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
 #mic.on{background:var(--accent);animation:pulse .6s infinite alternate}
 #send{padding:0 14px;background:var(--warn)}
 #sub-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#666;gap:8px}
-#hintBtn,#bgmBtn{font-size:12px;padding:4px 8px;box-shadow:2px 2px 0 var(--ink);border-width:2px}
+#hintBtn,#bgmBtn,#ttsBtn{font-size:12px;padding:4px 8px;box-shadow:2px 2px 0 var(--ink);border-width:2px}
 #hintText{color:#ff1a1a;font-weight:900;text-shadow:0 0 6px rgba(255,30,30,.45)}
 .kw{color:#ff1a1a;font-weight:900;background:#ffe9e9;border-radius:4px;padding:0 2px;text-shadow:0 0 8px rgba(255,30,30,.55);animation:kwglow .6s ease-in-out 3 alternate}
 @keyframes kwglow{to{background:#ffc9c9;text-shadow:0 0 14px rgba(255,0,0,.9)}}
@@ -240,8 +240,8 @@ button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
           <path d="M40 54 q0 -36 30 -36 q30 0 30 36 q-6 -14 -12 -10 q-4 -14 -12 -8 q-6 -12 -14 -2 q-8 -8 -12 6 q-6 -4 -10 14z" fill="#2b2a33"/>
           <path d="M70 18 q4 -10 12 -8" stroke="#2b2a33" stroke-width="3" fill="none"/>
           <!-- headband -->
-          <rect x="40" y="40" width="60" height="10" fill="#fff" stroke="#e04848" stroke-width="1.5"/>
-          <text x="70" y="49" font-size="9" font-weight="900" text-anchor="middle" fill="#e04848" font-family="Noto Sans TC">拼 了</text>
+          <rect x="39" y="38" width="62" height="13" fill="#fff" stroke="#e04848" stroke-width="1.5"/>
+          <text x="70" y="49" font-size="11" font-weight="900" text-anchor="middle" fill="#e04848" letter-spacing="1" font-family="Noto Sans TC">萬能工</text>
           <path d="M100 44 l14 -6 M100 46 l12 6" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
           <!-- glasses -->
           <circle cx="58" cy="64" r="9" fill="rgba(255,255,255,.35)" stroke="#2b2a33" stroke-width="2.5"/>
@@ -277,7 +277,8 @@ button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
     <div id="sub-row">
       <button id="hintBtn">💡 偷看關鍵字（爆肝+10）</button>
       <span id="hintText"></span>
-      <span><button id="bgmBtn">🎵 音樂 開</button></span>
+      <select id="voiceSel" style="display:none;font:inherit;font-size:12px;max-width:110px;border:2px solid var(--ink);border-radius:8px;padding:2px" aria-label="主管聲音"></select>
+      <span><button id="bgmBtn">🎵 音樂 開</button> <button id="ttsBtn">🔊 主管 開</button></span>
     </div>
   </div>
 
@@ -421,7 +422,7 @@ function markRaw(raw,m){
 }
 const norm = s => s.toLowerCase().replace(/[\s，。！？、,.!?~～…「」『』"']/g,"").split("").map(c=>S2T[c]||c).join("");
 
-let day=0, hp=100, qi=0, sat=60, liver=10, pots=0, timer=null, tLeft=20, busy=false, ttsOn=false, log=[], weekPass=0, hintUsed=false;
+let day=0, hp=100, qi=0, sat=60, liver=10, pots=0, timer=null, tLeft=20, busy=false, ttsOn=true, log=[], weekPass=0, hintUsed=false;
 const $ = id => document.getElementById(id);
 
 function toast(t,ms=2600){const e=$("toast");e.textContent=t;e.classList.add("show");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("show"),ms);}
@@ -435,28 +436,57 @@ function hud(){
   $("hpBar").style.background=hp>50?"#3fd27a":hp>25?"#f2b632":"#e04848";$("hpWrap").classList.toggle("low",hp<=25);
   $("clockHand").setAttribute("transform","rotate("+(day*60+qi*12)+" 225 62)");
 }
-// ---- boss voice: prefer a male Chinese voice; otherwise deepen pitch ----
+// ---- boss voice ----
+// "g" = synthesized 50-year-old 大叔 grumble (works on every phone, always male)
+// otherwise = a system text-to-speech voice picked in the menu
 const MALE=/zhiwei|yunjhe|yunxi|yunyang|yunjian|yunze|yunfeng|yunhao|kangkang|li-?mu|liang|han\b|male|男/i;
-let zhVoices=[], bossVoice=null, voiceIsMale=false;
+let zhVoices=[], bossVoice=null, voiceMode="g", userPicked=false;
 function loadVoices(){
-  if(!window.speechSynthesis) return;
-  const all=speechSynthesis.getVoices(); if(!all.length) return;
-  zhVoices=all.filter(v=>/^(zh|cmn|yue)/i.test(v.lang));
-  const tw=v=>/TW|Hant/i.test(v.lang);
-  const pick = zhVoices.find(v=>MALE.test(v.name)&&tw(v)) || zhVoices.find(v=>MALE.test(v.name)) || zhVoices.find(tw) || zhVoices[0] || null;
-  if(!bossVoice) { bossVoice=pick; voiceIsMale=!!(pick&&MALE.test(pick.name)); }
-  const sel=$("voiceSel"); if(!sel) return; sel.style.display=zhVoices.length?"":"none";
-  sel.innerHTML=zhVoices.map((v,i)=>`<option value="${i}" ${v===bossVoice?"selected":""}>${MALE.test(v.name)?"👨 ":""}${v.name.replace(/Microsoft |Google |Online \(Natural\)|- .*$/g,"").trim()}</option>`).join("") || "<option>預設</option>";
+  if(window.speechSynthesis){ const all=speechSynthesis.getVoices(); zhVoices=all.filter(v=>/^(zh|cmn|yue)/i.test(v.lang)); }
+  const male=zhVoices.find(v=>MALE.test(v.name));
+  if(!userPicked){ if(male){bossVoice=male;voiceMode="tts";} else voiceMode="g"; }
+  const sel=$("voiceSel"); if(!sel) return; sel.style.display="";
+  sel.innerHTML=`<option value="g" ${voiceMode==="g"?"selected":""}>👨 大叔嘟囔聲</option>`+
+    zhVoices.map((v,i)=>`<option value="${i}" ${voiceMode==="tts"&&v===bossVoice?"selected":""}>${MALE.test(v.name)?"👨 ":"🗣 "}${v.name.replace(/Microsoft |Google |Online \(Natural\)|- .*$/g,"").trim()}</option>`).join("");
 }
-if(window.speechSynthesis){ loadVoices(); speechSynthesis.onvoiceschanged=loadVoices; }
+if(window.speechSynthesis){ speechSynthesis.onvoiceschanged=loadVoices; }
+
+// formant tables for a few vowels (F1,F2) – gives the mumble a "speech" colour
+const VOW=[[730,1090],[570,840],[530,1840],[300,870],[440,1020],[660,1700]];
+let gNode=null;
+function stopGrumble(){ if(gNode){ try{gNode.gain.cancelScheduledValues(0);gNode.gain.value=0;gNode.disconnect();}catch(e){} gNode=null; } }
+function grumble(text){
+  initAudio(); if(!actx) return; try{actx.resume();}catch(e){}
+  stopGrumble();
+  const out=actx.createGain(); out.gain.value=2.6; out.connect(actx.destination); gNode=out;
+  const lp=actx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=2400; lp.connect(out);
+  let t=actx.currentTime+.05;
+  const chars=[...text.replace(/（.*?）/g,"")];
+  chars.forEach((c,i)=>{
+    if(/[，。！？、,.!?…～~「」『』\s]/.test(c)){ t+= /[，、,\s]/.test(c)?.16:.28; return; }
+    const d=.13+Math.random()*.05;                         // slow, heavy syllables
+    const f0=88+Math.random()*22 - (i===chars.length-2?12:0); // ~100 Hz = middle-aged man
+    const o=actx.createOscillator(); o.type="sawtooth";
+    o.frequency.setValueAtTime(f0*1.06,t); o.frequency.linearRampToValueAtTime(f0*.92,t+d);
+    const vib=actx.createOscillator(), vg=actx.createGain(); vib.frequency.value=5.5; vg.gain.value=2.5; vib.connect(vg); vg.connect(o.frequency);
+    const env=actx.createGain(); env.gain.setValueAtTime(0,t); env.gain.linearRampToValueAtTime(.55,t+.025); env.gain.setValueAtTime(.5,t+d*.6); env.gain.linearRampToValueAtTime(0,t+d);
+    const [f1,f2]=VOW[Math.floor(Math.random()*VOW.length)];
+    const b1=actx.createBiquadFilter(); b1.type="bandpass"; b1.frequency.value=f1*.9; b1.Q.value=6;
+    const b2=actx.createBiquadFilter(); b2.type="bandpass"; b2.frequency.value=f2*.9; b2.Q.value=8;
+    const g2=actx.createGain(); g2.gain.value=.45;
+    o.connect(env); env.connect(b1); env.connect(b2); b2.connect(g2); b1.connect(lp); g2.connect(lp);
+    o.start(t); o.stop(t+d+.02); vib.start(t); vib.stop(t+d+.02);
+    t+=d+.025;
+  });
+}
 function speak(text){
-  if(!ttsOn||!window.speechSynthesis) return;
-  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text.replace(/（.*?）/g,""));u.lang="zh-TW";
-    if(!bossVoice) loadVoices();
+  if(!ttsOn) return;
+  stopGrumble(); if(window.speechSynthesis) try{speechSynthesis.cancel();}catch(e){}
+  if(voiceMode==="g" || !window.speechSynthesis){ grumble(text); return; }
+  try{const u=new SpeechSynthesisUtterance(text.replace(/（.*?）/g,""));u.lang="zh-TW";
     if(bossVoice) u.voice=bossVoice;
-    // male voice: slightly low & slow; female/unknown voice: push pitch way down so it sounds like a 大叔
-    u.pitch = voiceIsMale ? 0.75 : 0.1; u.rate = 0.92;
-    speechSynthesis.speak(u);}catch(e){}
+    u.pitch = MALE.test(bossVoice&&bossVoice.name||"") ? 0.55 : 0.1; u.rate = 0.82;
+    speechSynthesis.speak(u);}catch(e){ grumble(text); }
 }
 function bossSay(text,sub){
   const b=$("bossBubble");b.innerHTML=text+(sub?"<small>"+sub+"</small>":"");b.classList.add("show"); layout();
@@ -605,6 +635,8 @@ function sfx(kind){ if(!actx) return; const t=actx.currentTime+.01;
   else if(kind==="wok"){const o=tone(600,t,.55,"square",.35);o.frequency.exponentialRampToValueAtTime(90,t+.5);tone(180,t+.55,.6,"triangle",.8);tone(273,t+.55,.5,"sine",.4);hat(t+.55,.9);}
   else if(kind==="over"){[67,63,60,55].forEach((m,i)=>tone(mtof(m),t+i*.25,.3,"triangle",.6));}
 }
+$("ttsBtn").onclick=()=>{ ttsOn=!ttsOn; $("ttsBtn").textContent="🔊 主管 "+(ttsOn?"開":"關"); if(!ttsOn){stopGrumble();if(window.speechSynthesis)speechSynthesis.cancel();} };
+$("voiceSel").onchange=e=>{ userPicked=true; const x=e.target.value; if(x==="g"){voiceMode="g";} else {bossVoice=zhVoices[+x];voiceMode="tts";} speak("這是你的問題，懂嗎？"); };
 $("bgmBtn").onclick=()=>{ bgmOn=!bgmOn; $("bgmBtn").textContent="🎵 音樂 "+(bgmOn?"開":"關"); bgmOn?bgmStart():bgmStop(); };
 
 /* ---------- voice input ---------- */
@@ -622,7 +654,7 @@ $("mic").onclick=()=>{
       if(e.results[e.results.length-1].isFinal){stopMic();setTimeout(()=>submit(),300);}};
     rec.onerror=e=>{ if(e.error==="no-speech"){stopMic();toast("沒聽到聲音，再說一次？");} else micFail(); };
     rec.onend=()=>{recOn=false;$("mic").classList.remove("on");};
-    if(window.speechSynthesis) speechSynthesis.cancel();
+    stopGrumble(); if(window.speechSynthesis) speechSynthesis.cancel();
     rec.start(); recOn=true; $("mic").classList.add("on"); toast("🎤 請說…");
   }catch(e){micFail();}
 };
@@ -631,7 +663,7 @@ $("send").onclick=submit;
 $("answer").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();submit();}});
 $("hintBtn").onclick=()=>{ if(busy||hintUsed) return; hintUsed=true; liver+=10; hud(); $("hintText").textContent="提示：「"+today[qi].k[0]+"」之類的"; };
 $("startBtn").onclick=()=>{ bgmStart(); $("startOv").classList.add("hide"); try{speechSynthesis&&speechSynthesis.getVoices();}catch(e){} startDay(); };
-hud(); layout();
+hud(); layout(); loadVoices();
 </script>
 </body>
 </html>
